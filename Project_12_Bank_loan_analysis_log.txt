@@ -1,0 +1,468 @@
+--BANK LOAN ANALYSIS Project--
+
+Problem Statement KPIs Requirement:
+
+Dashboard 1: Summary Dashboard
+
+1. Total Loan Applications
+2. Total Funded Amount
+3. Total Amount Received
+4. Average Interest Rate
+5. Average Debt-to-Income Ratio(DTI)
+6. Good Loan vs Bad Loan KPIs: Application %age, Applications, Funded Amount, Total Received Amount
+
+Dashboard 2: Overview
+
+Total Loan Applications, Total Funded Amt, Total Amt Received
+
+1. Monthly Trends Chart
+2. Regional Analysis by State
+3. Loan Term Analysis
+4. Employee Length Analysis
+5. Loan Purpose Breakdown
+6. Home Ownership Analysis
+
+Dashboard 3: Details
+
+Grid with Holistic Snapshot
+
+Tools Used:
+
+1. MS Excel 2021
+2. PgAdmin
+3. Tableau Desktop 2024.3
+
+Procedure
+
+1. Create a new database in PgAdmin titled Bank Loan DB(You can choose your own name)
+2. In this new database select the query tool and write the following query to create a new table in this database:
+
+Code:
+
+CREATE TABLE bank_loan (
+	id INT PRIMARY KEY,
+	address_state VARCHAR(50),
+	application_type VARCHAR(50),
+	emp_length VARCHAR(50),
+	emp_title VARCHAR(200),
+	grade VARCHAR(50),
+	home_ownership VARCHAR(50),
+	issue_date DATE,
+	last_credit_pull_date DATE,	
+	last_payment_date DATE,
+	loan_status	VARCHAR(50),
+	next_payment_date DATE,
+	member_id INT,
+	purpose	VARCHAR(200),
+	sub_grade VARCHAR(50),
+	term VARCHAR(50),
+	verification_status	VARCHAR(50),
+	annual_income FLOAT,
+	dti	FLOAT,
+	installment FLOAT,	
+	int_rate FLOAT,
+	loan_amount	INT,
+	total_acc INT,
+	total_payment INT
+)
+
+3. Now that the table has been created, we need to fill in the table with relevant data by importing it from excel or csv files.
+
+4. After importing check the data using the following query:
+
+Code:
+
+SELECT * FROM bank_loan;
+
+5. Now that everything is sorted, we can move to the real meat on the bone i.e the Analysis and EDA part by calculating certain necessary KPIs for decision making and analytical purposes.
+
+DASHBOARD 1: SUMMARY
+
+Part 1: KPI analysis
+
+I. Total Loan Application
+
+A. Total overall bank loan applications received
+
+Code:
+
+SELECT COUNT(*) AS total_loan_applications FROM bank_loan;
+
+B. Total Bank Loan Applications received in a particular month(say December)(Month-To_date Loan Applications)
+
+Code:
+
+SELECT COUNT(*) AS MTD_loan_application FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 12 
+	  AND
+	  EXTRACT(YEAR FROM issue_date) = 2021;
+
+C. Total bank loan applications of previous month (PMTD)
+
+Code:
+
+SELECT COUNT(*) AS PMTD_loan_application FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 11 
+	  AND
+	  EXTRACT(YEAR FROM issue_date) = 2021;
+
+D. Ascertaining Month-over-Month(MoM) changes in loan applications. 
+That is, (Present Month-To_Date Applications - Previous Month-To-Date Applications)/(Previous Month-to-Date Applications)*100
+
+Code:
+
+WITH month_on_month AS
+	(SELECT 
+		EXTRACT(YEAR FROM issue_date) AS year,
+		EXTRACT(MONTH FROM issue_date) AS month,
+		COUNT(*) AS loan_applications
+	 FROM bank_loan
+	 WHERE EXTRACT(YEAR FROM issue_date) = 2021
+	 	AND
+		   EXTRACT(MONTH FROM issue_date) IN (11,12)
+	 GROUP BY 1 , 2
+	)
+SELECT
+	MAX(CASE WHEN month = 12 THEN loan_applications END) AS MTD_loan_application,
+	MAX(CASE WHEN month = 11 THEN loan_applications END) AS PMTD_loan_application,
+	ROUND(((
+		 MAX(CASE WHEN month = 12 THEN loan_applications END)::NUMERIC - MAX(CASE WHEN month = 11 THEN loan_applications END)::NUMERIC)
+		 /
+		 MAX(CASE WHEN month = 11 THEN loan_applications END)::NUMERIC)*100 , 2) AS MoM_change_percent
+FROM month_on_month;
+
+II. Total Funded Amount Calculations
+
+A. Total overall funded amounts in terms of loans
+
+Code:
+
+SELECT SUM(loan_amount) AS total_funded_amount
+FROM bank_loan;
+
+B. Total overall funded amounts for different months (MTD)
+
+Code:
+
+SELECT SUM(loan_amount) AS MTD_total_funded_amount
+FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 12 AND EXTRACT(YEAR FROM issue_date) = 2021;
+
+C. Total overall funded amounts for previous month (PMTD)
+
+Code:
+
+SELECT SUM(loan_amount) AS PMTD_total_funded_amount
+FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 11 AND EXTRACT(YEAR FROM issue_date) = 2021; 
+
+D. Calculating MoM changes in funded amount(loans granted)
+
+Code:
+
+WITH MoM_funded_amt AS
+(
+	SELECT 
+		EXTRACT(MONTH FROM issue_date) AS month,
+		EXTRACT(YEAR FROM issue_date) AS year,
+		SUM(loan_amount) AS total_funded_amount
+	FROM bank_loan
+	WHERE EXTRACT(YEAR FROM issue_date) = 2021
+		AND
+		  EXTRACT(MONTH FROM issue_date) IN (11,12)
+	GROUP BY 1,2
+)
+SELECT 
+	MAX(CASE WHEN month = 12 THEN total_funded_amount END) AS MTD_total_funded_amount,
+	MAX(CASE WHEN month = 11 THEN total_funded_amount END) AS PMTD_total_funded_amount,
+	ROUND(((
+		MAX(CASE WHEN month = 12 THEN total_funded_amount END)::NUMERIC - MAX(CASE WHEN month = 11 THEN total_funded_amount END)::NUMERIC)
+		/
+		MAX(CASE WHEN month = 11 THEN total_funded_amount END)::NUMERIC)*100,2) AS MoM_funded_amt_rate
+FROM MoM_funded_amt;
+
+III. Total amount received calculations
+
+A. Overall Total amount received
+
+Code:
+
+SELECT SUM(total_payment) AS total_amt_received
+FROM bank_loan;
+
+B. Total amount received for a particular month(MTD amount)
+
+Code:
+
+SELECT SUM(total_payment) AS MTD_total_amt_received
+FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 12 AND EXTRACT(YEAR FROM issue_date) = 2021;
+
+C. Total amount received in month previous to current month(PMTD)
+
+Code:
+
+SELECT SUM(total_payment) AS PMTD_total_amt_received
+FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 11 AND EXTRACT(YEAR FROM issue_date) = 2021;
+
+D. MoM changes in received amount rate
+
+Code:
+
+WITH mom_rec_amth AS
+(
+	SELECT
+		EXTRACT(YEAR FROM issue_date) AS year,
+		EXTRACT(MONTH FROM issue_date) AS month,
+		SUM(total_payment) AS total_amt_rec
+	FROM bank_loan
+	WHERE EXTRACT(YEAR FROM issue_date) = 2021 AND EXTRACT(MONTH FROM issue_date) IN (11,12)
+	GROUP BY 1,2
+)
+SELECT 
+	MAX(CASE WHEN month = 12 THEN total_amt_rec END) AS MTD_amt_rec,
+	MAX(CASE WHEN month = 11 THEN total_amt_rec END) AS PMTD_amt_rec,
+	ROUND(((
+	MAX(CASE WHEN month = 12 THEN total_amt_rec END)::NUMERIC - MAX(CASE WHEN month = 11 THEN total_amt_rec END)::NUMERIC
+	)/
+	MAX(CASE WHEN month = 11 THEN total_amt_rec END)::NUMERIC
+	)*100 ,2) AS MoM_rec_amt
+FROM mom_rec_amth;
+
+IV. Average Bank interest rate calculation
+
+A. Calculating overall average interest rate for loans.
+
+Code:
+
+SELECT 
+	ROUND((AVG(int_rate::NUMERIC)*100),2) AS Avg_int_rate
+FROM bank_loan;
+
+B. Calculating Average interest rate for a particular month(MTD)
+
+Code:
+
+SELECT 
+	ROUND((AVG(int_rate::NUMERIC)*100),2) AS Avg_int_rate
+FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 12 AND EXTRACT(YEAR FROM issue_date) = 2021;
+
+V. Average Debt-to-Income Analysis
+
+A. Overall average DTI 
+
+Code:
+
+SELECT ROUND((AVG(dti)::NUMERIC)*100, 2) AS average_dti
+FROM bank_loan;
+
+Part 2: Good Loan vs Bad Loan Analysis
+
+I. Loan Percentage analysis for good and bad loans
+
+Code:
+
+--For Good Loans
+
+SELECT 
+	ROUND(((COUNT(CASE WHEN loan_status ILIKE 'fully paid' OR loan_status ILIKE 'Current' THEN id END))::NUMERIC
+	/
+	COUNT(*)::NUMERIC)*100, 2) AS good_loan_percentage
+FROM bank_loan;
+
+--Meaning (output=86%) 86% of the loans are Good loans and rest are bad loans
+
+--For Bad Loans
+
+SELECT 
+	ROUND(((COUNT(CASE WHEN loan_status ILIKE 'Charged off' THEN id END))::NUMERIC
+	/
+	COUNT(*)::NUMERIC)*100, 2) AS bad_loan_percentage
+FROM bank_loan;
+
+II. Total applications Good loan vs Bad loan
+
+Code:
+--For Good Loans--
+
+SELECT 
+	COUNT(id) AS Good_loan_Applications
+FROM bank_loan
+WHERE loan_status ILIKE 'Fully Paid' OR loan_status ILIKE 'Current';
+
+--For Bad Loans--
+
+SELECT 
+	COUNT(id) AS bad_loan_Applications
+FROM bank_loan
+WHERE loan_status ILIKE 'Charged off';
+
+III. Total funded amount for Good loan vs Bad loan
+
+Code:
+
+--For Good Loans--
+
+SELECT 
+	SUM(loan_amount) AS Good_loan_funded_amt
+FROM bank_loan
+WHERE loan_status NOT ILIKE 'Charged Off';
+
+--For Bad Loans--
+
+SELECT 
+	SUM(loan_amount) AS bad_loan_funded_amt
+FROM bank_loan
+WHERE loan_status ILIKE 'Charged Off';
+
+IV. Total received amount for Good loan vs Bad loans
+
+Code:
+
+--For Good Loans--
+
+SELECT 
+	SUM(total_payment) AS total_good_loan_amt_rec
+FROM bank_loan
+WHERE loan_status NOT ILIKE 'Charged off';
+
+--For Bad Loans--
+
+SELECT 
+	SUM(total_payment) AS total_bad_loan_amt_rec
+FROM bank_loan
+WHERE loan_status ILIKE 'Charged off';
+
+Part 3: Loan Status Grid View
+
+I. Overall Loan Status Grid
+
+Code:
+
+SELECT
+	loan_status,
+	COUNT(id) AS Total_applications,
+	SUM(total_payment) AS total_amt_received,
+	SUM(loan_amount) AS total_funded_amount,
+	ROUND(((AVG(int_rate)::NUMERIC)*100),2) AS Average_interest_rate,
+	ROUND(((AVG(dti)::NUMERIC)*100),2) AS Average_dti
+FROM bank_loan
+GROUP BY 1;
+
+II. Loan status for Month-to-Date
+
+Code:
+
+SELECT
+	loan_status,
+	COUNT(id) AS MTD_Total_applications,
+	SUM(total_payment) AS MTD_total_amt_received,
+	SUM(loan_amount) AS MTD_total_funded_amount,
+	ROUND(((AVG(int_rate)::NUMERIC)*100),2) AS MTD_Average_interest_rate,
+	ROUND(((AVG(dti)::NUMERIC)*100),2) AS MTD_Average_dti
+FROM bank_loan
+WHERE EXTRACT(MONTH FROM issue_date) = 12 AND EXTRACT(YEAR FROM issue_date) = 2021
+GROUP BY 1;
+
+DASHBOARD 2: Overview
+Metrics used: Total Loan Applications, Total Funded amount and Total Amount Received
+
+I. Monthly Trends by Issue Date
+
+Code: 
+
+--Date Wise
+
+SELECT 
+	issue_date,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1;
+
+--Month Wise
+
+SELECT 
+	TO_CHAR(issue_date, 'Month') AS Month,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1, EXTRACT(MONTH FROM issue_date)
+ORDER BY EXTRACT(MONTH FROM issue_date) ASC;
+
+--Week wise
+
+SELECT 
+	EXTRACT(WEEK FROM issue_date) AS Week,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1
+ORDER BY 1;
+
+
+
+II. Regional Analysis by State
+
+Code:
+
+SELECT 
+	address_state,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1;
+
+III. Loan Term Analysis
+
+Code:
+
+SELECT 
+	term,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1;
+
+IV. Employee Length Analysis
+
+Code:
+
+SELECT 
+	emp_length,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1;
+
+V. Loan Purpose Breakdown
+
+Code:
+
+SELECT 
+	purpose,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1;
+
+VI. Home Ownership Analysis
+
+Code:
+
+SELECT 
+	home_ownership,
+	COUNT(id) AS Total_loan_applications,
+	SUM(loan_amount) AS total_funded_amount,
+	SUM(total_payment) AS total_amount_receieved
+FROM bank_loan
+GROUP BY 1;
